@@ -1,0 +1,9 @@
+{
+    "type": "Vigenere",
+    "mode": "encrypt",
+    "key": [
+        17,
+        20,
+        13
+    ]
+}
