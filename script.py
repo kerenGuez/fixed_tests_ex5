@@ -1,32 +1,25 @@
 import os
-import json
 import shutil
 import filecmp
 import difflib
 from pathlib import Path
 from ex5 import processDirectory
-from ex5 import getVigenereFromStr
-
+import json
 
 # to keep the output files comment the last block of code in the file.
 # Change it for the number of test you want. (up to 1001).
 NUM_OF_TESTS = 1001
 
 
-def fix_str_key(dir_path):
-    is_key_string = False
-    with open(Path(dir_path) / "config.json", 'r') as config_file:
+def get_mode(dir_path):
+    is_caesar = False
+    with open(Path(dir_path) / 'config.json', 'r') as config_file:
         config_dict = json.load(config_file)
-        # If key is string use getVigenereFromStr method to convert to valid key
-        if isinstance(config_dict["key"], str):
-            is_key_string = True
-            obj = getVigenereFromStr(config_dict["key"])
-            good_key = obj.key_list
-            config_dict["key"] = good_key
+        class_type = config_dict["type"]
+        if class_type == "Caesar":
+            is_caesar = True
 
-    if is_key_string:
-        with open(Path(dir_path) / "config.json", 'w') as config_file:
-            json.dump(config_dict, config_file, indent=4)
+    return is_caesar
 
 
 def compare_files(output_path, expected_path):
@@ -50,57 +43,57 @@ def compare_files(output_path, expected_path):
     return True
 
 
-def test_examples():
-    test_counter = 0
-    for i in range(4):
-        encryption_path, decryption_path = set_up(i)
-        out_file = Path(encryption_path) / f"test{i}.enc"
-        exp_file = out_file.parent / f"{i}.out"
-        result1 = compare_files(str(out_file), str(exp_file))
-        dst_file = Path(decryption_path) / out_file.name
-        shutil.copy(out_file, dst_file)
-        processDirectory(decryption_path)
-        result2 = compare_files(dst_file.with_suffix('.txt'), out_file.with_suffix('.txt'))
-        if result1 and result2:
-            test_counter += 1
-            print("PASSED :)")
+def test_encryption(encrypt_dir_to_test, decryption_dir, test_num, is_caesar):
+    fails = 0
+    for elem in os.listdir(encrypt_dir_to_test):
+        if elem.endswith(".enc"):
+            out_file = Path(encrypt_dir_to_test) / elem
+            dst_file = Path(decryption_dir) / elem
+            shutil.copy(out_file, dst_file)
+            if test_num in range(4) or is_caesar:
+                if not compare_files(str(out_file), str(out_file.with_suffix(".out"))):
+                    fails += 1
 
-    return test_counter
+    return fails
+
+
+def test_decryption(encryption_path, decrypt_dir_to_test):
+    fails = 0
+    for elem in os.listdir(encryption_path):
+        if elem.endswith('.txt'):
+            out_file = Path(encryption_path) / elem
+            dst_file = Path(decrypt_dir_to_test) / elem
+            if not compare_files(dst_file.with_suffix('.txt'), out_file.with_suffix('.txt')):
+                fails += 1
+
+    return fails
+
+
+def test_examples():
+    passed_tests = fails = 0
+    for i in range(NUM_OF_TESTS):
+        encryption_path, decryption_path = set_up(i)
+        is_caesar = get_mode(encryption_path)
+        fails += test_encryption(encryption_path, decryption_path, i, is_caesar)
+
+        processDirectory(decryption_path)
+        fails += test_decryption(encryption_path, decryption_path)
+
+        if fails == 0:
+            print("PASSED :)")
+            passed_tests += 1
+
+    return passed_tests
 
 
 def set_up(num):
     encrypt_path = str(Path('tests') / f"test{num}e")
     decrypt_path = str(Path('tests') / f"test{num}d")
-    fix_str_key(encrypt_path)
-    fix_str_key(decrypt_path)
     print("____________________________________")
     print(f"test no.{num}:", end=" ")
 
     processDirectory(encrypt_path)
     return encrypt_path, decrypt_path
-
-
-def main_test():
-    passed_test = test_counter = count = 0
-    passed_test += test_examples()
-    for num in range(4, NUM_OF_TESTS):
-        encryption_path, decryption_path = set_up(num)
-
-        for elem in os.listdir(encryption_path):
-            if elem.endswith(".enc"):
-                shutil.copy(Path(encryption_path) / elem, Path(decryption_path) / elem)
-
-        processDirectory(decryption_path)
-        for elem in os.listdir(encryption_path):
-            if elem.endswith(".txt"):
-                count += 1
-                test_counter += compare_files(str(Path(encryption_path, elem)), str(Path(decryption_path, elem)))
-
-        if test_counter == count:
-            passed_test += 1
-            print("PASSED :)")
-
-    return passed_test
 
 
 # comment next lines to keep the output files.
@@ -113,6 +106,7 @@ def clean_up():
             path = Path(encrypted_dir_path, file)
             if file.endswith(".enc"):
                 os.remove(path)
+
         for file in os.listdir(decrypted_dir_path):
             path = Path(decrypted_dir_path, file)
             if file.endswith(".json"):
@@ -122,7 +116,7 @@ def clean_up():
 
 
 if __name__ == "__main__":
-    tests_passed = main_test()
+    tests_passed = test_examples()
     if tests_passed == NUM_OF_TESTS:
         print("\n\nGood Job! You've PASSED all the tests ")
     else:
